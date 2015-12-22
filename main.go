@@ -10,8 +10,8 @@ import (
 )
 
 func initRecord() (*gst.Pipeline, error) {
-	src := gst.ElementFactoryMake("pulsesrc", "pulsesrc")
-	// src.SetProperty("device", "hw:1")
+	src := gst.ElementFactoryMake("alsasrc", "alsasrc")
+	src.SetProperty("device", "hw:0")
 
 	audioconvert := gst.ElementFactoryMake("audioconvert", "audioconvert")
 
@@ -36,17 +36,19 @@ func initRecord() (*gst.Pipeline, error) {
 		oggmux,
 		filesink,
 	); !ok {
-		return nil, errors.New("elements not accepted")
+		return nil, errors.New("adding elements to pipeline failed")
 	}
 
-	src.Link(
+	if ok := src.Link(
 		audioconvert,
 		level,
 		audioresample,
 		vorbisenc,
 		oggmux,
 		filesink,
-	)
+	); !ok {
+		return nil, errors.New("linking elements failed")
+	}
 
 	return pl, nil
 }
@@ -80,13 +82,7 @@ func onMessage(bus *gst.Bus, msg *gst.Message) {
 	switch {
 	case t == gst.MESSAGE_ELEMENT && name == "level":
 		level := NewLevelMsg(params)
-
-		println(fmt.Sprintf(
-			"name %q level msg %+v",
-			name,
-			level,
-		))
-
+		println(fmt.Sprintf("name %q level msg %+v", name, level))
 	case t == gst.MESSAGE_STATE_CHANGED:
 		new, old, _ := msg.ParseStateChanged()
 		println(fmt.Sprintf("state change old %v new %v", old, new))
@@ -95,6 +91,10 @@ func onMessage(bus *gst.Bus, msg *gst.Message) {
 		println(fmt.Sprintf("%v", s))
 	case t == gst.MESSAGE_STREAM_START:
 		println(fmt.Sprintf("### stream start"))
+	case t == gst.MESSAGE_ERROR:
+		err, debug := msg.ParseError()
+		println(fmt.Sprintf("err %v debug %q", err, debug))
+		err.Free()
 	}
 }
 
