@@ -2,11 +2,11 @@ package main
 
 import (
 	"errors"
-	"fmt"
 	"log"
 
 	"github.com/s-urbaniak/glib"
 	"github.com/s-urbaniak/gst"
+	"github.com/s-urbaniak/rec/webapp"
 )
 
 func initRecord() (*gst.Pipeline, error) {
@@ -77,24 +77,31 @@ func NewLevelMsg(params glib.Params) LevelMsg {
 func onMessage(bus *gst.Bus, msg *gst.Message) {
 	t := msg.GetType()
 	name, params := msg.GetStructure()
-	println(fmt.Sprintf("msg %v", t.String()))
+	// println(fmt.Sprintf("msg %v", t.String()))
 
 	switch {
 	case t == gst.MESSAGE_ELEMENT && name == "level":
 		level := NewLevelMsg(params)
-		println(fmt.Sprintf("name %q level msg %+v", name, level))
+		if level.Peak > 0 {
+			level.Peak = 0
+		}
+
+		// println(fmt.Sprintf(
+		// 	"name %q level %+v peak %f",
+		// 	name, level, math.Pow(10.0, level.Peak/20.0),
+		// ))
 	case t == gst.MESSAGE_STATE_CHANGED:
-		new, old, _ := msg.ParseStateChanged()
-		println(fmt.Sprintf("state change old %v new %v", old, new))
+		// new, old, _ := msg.ParseStateChanged()
+		//println(fmt.Sprintf("state change old %v new %v", old, new))
 	case t == gst.MESSAGE_STREAM_STATUS:
-		s := msg.ParseStreamStatus()
-		println(fmt.Sprintf("%v", s))
+		//s := msg.ParseStreamStatus()
+		//println(fmt.Sprintf("%v", s))
 	case t == gst.MESSAGE_STREAM_START:
-		println(fmt.Sprintf("### stream start"))
+		//println(fmt.Sprintf("### stream start"))
 	case t == gst.MESSAGE_ERROR:
-		err, debug := msg.ParseError()
-		println(fmt.Sprintf("err %v debug %q", err, debug))
-		err.Free()
+		//err, debug := msg.ParseError()
+		//println(fmt.Sprintf("err %v debug %q", err, debug))
+		//err.Free()
 	}
 }
 
@@ -111,6 +118,8 @@ func main() {
 	if state := pl.SetState(gst.STATE_PLAYING); state == gst.STATE_CHANGE_FAILURE {
 		log.Fatal("state change failed")
 	}
+
+	go webapp.ListenAndServe()
 
 	glib.NewMainLoop(nil).Run()
 }
