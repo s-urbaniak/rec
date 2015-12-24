@@ -4,16 +4,23 @@ import "net/http"
 
 // ListenAndServe starts serving the webapp
 func ListenAndServe() {
-	http.Handle(
-		"/bootstrap/",
-		http.StripPrefix("/bootstrap/", FileServerNoReaddir("webapp/bower_components/bootstrap/dist")),
-	)
+	handleBowerDist := func(name string) {
+		h := http.StripPrefix(
+			"/"+name+"/",
+			FileServerNoReaddir(http.Dir("webapp/bower_components/"+name+"/dist")),
+		)
 
-	http.Handle(
-		"/jquery/",
-		http.StripPrefix("/jquery/", FileServerNoReaddir("webapp/bower_components/jquery/dist")),
-	)
+		http.Handle("/"+name+"/", h)
+	}
 
-	http.Handle("/", http.FileServer(http.Dir("webapp/html")))
+	// bower components
+	handleBowerDist("bootstrap")
+	handleBowerDist("jquery")
+	handleBowerDist("bacon")
+
+	// local assets
+	http.Handle("/js/", FileServerNoReaddir(http.Dir("webapp")))
+	http.Handle("/", FileServerNoReaddir(http.Dir("webapp/html")))
+
 	http.ListenAndServe(":8080", nil)
 }
