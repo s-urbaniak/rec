@@ -37,6 +37,6 @@ func (f file) Readdir(count int) ([]os.FileInfo, error) {
 
 // FileServerNoReaddir returns a http.Handler that behaves like a http.FileServer
 // but doesn't provide directory listings.
-func FileServerNoReaddir(dir string) http.Handler {
-	return http.FileServer(filesystem{http.Dir(dir)})
+func FileServerNoReaddir(fs http.FileSystem) http.Handler {
+	return http.FileServer(filesystem{fs})
 }
