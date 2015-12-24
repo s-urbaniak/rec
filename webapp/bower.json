@@ -9,6 +9,7 @@
     "tests"
   ],
   "dependencies": {
-    "bootstrap": "~3.3.6"
+    "bootstrap": "~3.3.6",
+    "bacon": "~0.7.83"
   }
 }
