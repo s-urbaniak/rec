@@ -2,6 +2,7 @@ package main
 
 import (
 	"errors"
+	"fmt"
 	"log"
 
 	"github.com/s-urbaniak/glib"
@@ -121,5 +122,6 @@ func main() {
 
 	go webapp.ListenAndServe()
 
+	fmt.Println("starting rec ...")
 	glib.NewMainLoop(nil).Run()
 }
