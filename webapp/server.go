@@ -1,6 +1,7 @@
 package webapp
 
 import (
+	"fmt"
 	"log"
 	"net/http"
 
@@ -9,25 +10,23 @@ import (
 
 var upgrader = websocket.Upgrader{}
 
-func wsHandler(res http.ResponseWriter, req *http.Request) {
+func wsHandler(res http.ResponseWriter, req *http.Request) error {
 	c, err := upgrader.Upgrade(res, req, nil)
 	if err != nil {
-		log.Printf("error upgrading request %v, error %v", req, err)
-		return
+		return fmt.Errorf("error upgrading request %v, error %v", req, err)
 	}
 	defer c.Close()
 
 	for {
 		msgType, msg, err := c.ReadMessage()
 		if err != nil {
-			log.Printf("error reading message, error %v", err)
-			break
+			return fmt.Errorf("error reading message, error %v", err)
 		}
+
 		log.Printf("msg type %d msg %q", msgType, msg)
 
 		if err := c.WriteMessage(msgType, []byte("ok")); err != nil {
-			log.Printf("error writing message, error %v", err)
-			break
+			return fmt.Errorf("error writing message, error %v", err)
 		}
 	}
 }
@@ -53,7 +52,7 @@ func ListenAndServe() {
 	http.Handle("/", FileServerNoReaddir(http.Dir("webapp/html")))
 
 	// endpoints
-	http.HandleFunc("/ws", wsHandler)
+	http.Handle("/ws", HandlerIgnoreErr(DecorateHandler(HandlerErrFunc(wsHandler), logger)))
 
 	http.ListenAndServe(":8080", nil)
 }
