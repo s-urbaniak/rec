@@ -20,6 +20,13 @@ func main() {
 		start := recorder.NewRequestStart()
 		recorder.Enqueue(start)
 		log.Printf("start response %T\n", <-start.ResponseChan)
+
+		lr := recorder.NewRequest(recorder.RequestLevel{})
+		for {
+			recorder.Enqueue(lr)
+			log.Printf("level response %+v\n", <-lr.ResponseChan)
+			time.Sleep(100 * time.Millisecond)
+		}
 	}()
 
 	go func() {
