@@ -1,28 +1,24 @@
 package recorder
 
-import (
-	"log"
-
-	"github.com/s-urbaniak/grun"
-	"github.com/s-urbaniak/gst"
-)
+import "log"
 
 var queue = make(chan Request)
 
-type stateFn func(*recorder) stateFn
+type stateFn func(Recorder) stateFn
 
+// Enqueue enqueues the given request to the recorder state machine.
 func Enqueue(r Request) {
 	queue <- r
 }
 
-func Run() {
-	recoder := &recorder{}
+// Run runs the recording state machine with the given recorder.
+func Run(r Recorder) {
 	for state := stopped; state != nil; {
-		state = state(recoder)
+		state = state(r)
 	}
 }
 
-func stopped(r *recorder) stateFn {
+func stopped(r Recorder) stateFn {
 	req := <-queue
 
 	switch req.Value.(type) {
