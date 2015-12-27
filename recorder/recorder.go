@@ -2,56 +2,32 @@ package recorder
 
 import (
 	"errors"
-	"log"
 
 	"github.com/s-urbaniak/grun"
 	"github.com/s-urbaniak/gst"
 )
 
-var queue = make(chan Request)
-
 type recorder struct {
-	pl      *gst.Pipeline
-	msgChan chan Msg
+	pl  *gst.Pipeline
+	bus *gst.Bus
 }
 
-type stateFn func(*recorder) stateFn
-
-func Enqueue(r Request) {
-	queue <- r
-}
-
-func Run() {
-	recoder := &recorder{}
-	for state := stopped; state != nil; {
-		state = state(recoder)
-	}
-}
-
-func stopped(r *recorder) stateFn {
-	req := <-queue
-
-	switch req.Value.(type) {
-	case RequestStart:
-	default:
-		req.ResponseChan <- NewResponseErrorf("invalid request")
-		return stopped
-	}
-
+func (r *recorder) Start(msgChan chan Msg) (err error) {
 	var (
-		pl      *gst.Pipeline
-		err     error
-		msgChan = make(chan Msg)
+		pl  *gst.Pipeline
+		bus *gst.Bus
 	)
 
 	grun.Run(func() {
-		src := gst.ElementFactoryMake("alsasrc", "alsasrc")
-		src.SetProperty("device", "hw:0")
+		src := gst.ElementFactoryMake("audiotestsrc", "src")
+		//src.SetProperty("num-buffers", 100)
+		//src.SetProperty("device", "hw:0")
 
 		audioconvert := gst.ElementFactoryMake("audioconvert", "audioconvert")
 
 		level := gst.ElementFactoryMake("level", "level")
 		level.SetProperty("post-messages", true)
+		level.SetProperty("interval", 100000000)
 
 		audioresample := gst.ElementFactoryMake("audioresample", "audioresample")
 		vorbisenc := gst.ElementFactoryMake("vorbisenc", "vorbisenc")
@@ -59,6 +35,7 @@ func stopped(r *recorder) stateFn {
 		oggmux := gst.ElementFactoryMake("oggmux", "oggmux")
 
 		filesink := gst.ElementFactoryMake("filesink", "filesink")
+		filesink.SetProperty("sync", true)
 		filesink.SetProperty("location", "test.ogg")
 
 		pl = gst.NewPipeline("pl")
@@ -92,39 +69,27 @@ func stopped(r *recorder) stateFn {
 			return
 		}
 
-		bus := pl.GetBus()
+		bus = pl.GetBus()
 		bus.AddSignalWatch()
 		bus.Connect("message", NewOnMessageFunc(msgChan), nil)
 	})
 
 	if err != nil {
-		req.ResponseChan <- NewResponseError(err)
-		return stopped
+		return
 	}
 
-	req.ResponseChan <- ResponseOK{}
 	r.pl = pl
-	r.msgChan = msgChan
+	r.bus = bus
 
-	return recording
+	return
 }
 
-func recording(r *recorder) stateFn {
-	select {
-	case msg := <-r.msgChan:
-		log.Printf("msg %T %+v", msg, msg)
+func (r *recorder) Stop() {
+	grun.Run(func() {
+		r.pl.SetState(gst.STATE_NULL)
+		r.bus.RemoveSignalWatch()
+	})
 
-	case req := <-queue:
-		switch req.Value.(type) {
-		case RequestStop:
-		default:
-			req.ResponseChan <- NewResponseErrorf("invalid request")
-			return stopped
-		}
-
-		r.pl = nil
-		close(r.msgChan)
-	}
-
-	return recording
+	r.pl = nil
+	r.bus = nil
 }
