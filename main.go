@@ -13,7 +13,7 @@ import (
 func main() {
 	log.SetFlags(log.Ltime | log.Lshortfile)
 
-	go recorder.Run()
+	go recorder.Run(recorder.NewRecorder())
 	go webapp.ListenAndServe()
 
 	go func() {
