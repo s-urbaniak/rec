@@ -39,30 +39,41 @@ func stopped(r Recorder) stateFn {
 }
 
 func recording(msgChan chan Msg) stateFn {
-	return func(r *recorder) stateFn {
-		select {
-		case msg := <-msgChan:
-			log.Printf("msg %T %+v", msg, msg)
+	return func(r Recorder) stateFn {
+		var level MsgLevel
 
-			switch msg.(type) {
-			case MsgEOS:
-				r.Stop()
-				return stopped
+		for {
+			select {
+			case msg := <-msgChan:
+				switch msg.(type) {
+				case MsgLevel:
+					level = msg.(MsgLevel)
+
+				case MsgEOS:
+					if err := r.Reset(); err != nil {
+						log.Fatal(err) // must not happen
+					}
+					return stopped
+				}
+
+			case req := <-queue:
+				switch req.Value.(type) {
+				case RequestStop:
+					if err := r.Stop(); err != nil {
+						req.ResponseChan <- NewResponseError(err)
+						return stopped
+					}
+					req.ResponseChan <- ResponseOK{}
+
+				case RequestLevel:
+					println("level")
+					req.ResponseChan <- ResponseLevel(level)
+
+				default:
+					req.ResponseChan <- NewResponseErrorf("invalid request")
+					return stopped
+				}
 			}
-
-		case req := <-queue:
-			switch req.Value.(type) {
-			case RequestStop:
-				grun.Run(func() { r.pl.SendEvent(gst.NewEventEOS()) })
-
-			default:
-				req.ResponseChan <- NewResponseErrorf("invalid request")
-				return stopped
-			}
-
-			req.ResponseChan <- ResponseOK{}
 		}
-
-		return recording(msgChan)
 	}
 }
