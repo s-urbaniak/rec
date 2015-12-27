@@ -12,6 +12,12 @@ type MsgLevel struct {
 	Timestamp, Duration, RunningTime uint64
 }
 
+type MsgUnknown string
+
+type MsgEOS struct{}
+
+type onMessageFunc func(bus *gst.Bus, msg *gst.Message)
+
 func NewMsgLevel(params glib.Params) MsgLevel {
 	arr := new(glib.ValueArray)
 	arr.SetPtr(params["peak"].(glib.Pointer))
@@ -28,8 +34,6 @@ func NewMsgLevel(params glib.Params) MsgLevel {
 	}
 }
 
-type onMessageFunc func(bus *gst.Bus, msg *gst.Message)
-
 func NewOnMessageFunc(msgChan chan Msg) onMessageFunc {
 	return func(bus *gst.Bus, msg *gst.Message) {
 		typ := msg.GetType()
@@ -38,6 +42,10 @@ func NewOnMessageFunc(msgChan chan Msg) onMessageFunc {
 		switch {
 		case typ == gst.MESSAGE_ELEMENT && name == "level":
 			msgChan <- NewMsgLevel(params)
+		case typ == gst.MESSAGE_EOS:
+			msgChan <- MsgEOS{}
+		default:
+			msgChan <- MsgUnknown(typ.String())
 		}
 	}
 }
