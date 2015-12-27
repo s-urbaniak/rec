@@ -23,19 +23,19 @@ func stopped(r Recorder) stateFn {
 
 	switch req.Value.(type) {
 	case RequestStart:
+		msg := make(chan Msg)
+		if err := r.Start(msg); err != nil {
+			req.ResponseChan <- NewResponseError(err)
+			break
+		}
+		req.ResponseChan <- ResponseOK{}
+		return recording(msg)
+
 	default:
 		req.ResponseChan <- NewResponseErrorf("invalid request")
-		return stopped
 	}
 
-	msg := make(chan Msg)
-	if err := r.Start(msg); err != nil {
-		req.ResponseChan <- NewResponseError(err)
-		return stopped
-	}
-
-	req.ResponseChan <- ResponseOK{}
-	return recording(msg)
+	return stopped
 }
 
 func recording(msgChan chan Msg) stateFn {
