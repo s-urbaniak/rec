@@ -12,9 +12,6 @@ type ResponseError error
 // ResponseOK indicates a succesful operation.
 type ResponseOK struct{}
 
-// ResponseLevel return the current known recording level.
-type ResponseLevel MsgLevel
-
 // NewResponseErrorf returns a new ResponseError
 // according to the given format specifier.
 func NewResponseErrorf(format string, a ...interface{}) ResponseError {

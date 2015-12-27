@@ -66,8 +66,7 @@ func recording(msgChan chan Msg) stateFn {
 					req.ResponseChan <- ResponseOK{}
 
 				case RequestLevel:
-					println("level")
-					req.ResponseChan <- ResponseLevel(level)
+					req.ResponseChan <- Response(level)
 
 				default:
 					req.ResponseChan <- NewResponseErrorf("invalid request")

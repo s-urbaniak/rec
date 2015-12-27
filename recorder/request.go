@@ -9,12 +9,15 @@ type Request struct {
 }
 
 // RequestStart is the message to start recording.
+// The response will be ResponseOK or ResponseError in case an error happened.
 type RequestStart struct{}
 
 // RequestStop is the message to stop recording.
+// The response will be ResponseOK or ResponseError in case an error happened.
 type RequestStop struct{}
 
 // RequestLevel requests the current recording level.
+// The response will be of type MsgLevel.
 type RequestLevel struct{}
 
 // NewRequestStart returns a new start request
