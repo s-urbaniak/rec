@@ -17,24 +17,16 @@ func main() {
 	go webapp.ListenAndServe()
 
 	go func() {
-		start := recorder.NewRequestStart()
-		recorder.Enqueue(start)
-		log.Printf("start response %T\n", <-start.ResponseChan)
+		log.Printf("start err %v", recorder.Start())
 
 		lr := recorder.NewRequest(recorder.RequestLevel{})
-		for {
+		for i := 0; i < 50; i++ {
 			recorder.Enqueue(lr)
 			log.Printf("level response %+v\n", <-lr.ResponseChan)
 			time.Sleep(100 * time.Millisecond)
 		}
-	}()
 
-	go func() {
-		time.Sleep(5 * time.Second)
-		log.Println("stopping")
-		stop := recorder.NewRequestStop()
-		recorder.Enqueue(stop)
-		log.Printf("stop response %T\n", <-stop.ResponseChan)
+		log.Printf("stop err %v", recorder.Stop())
 	}()
 
 	glib.NewMainLoop(nil).Run()

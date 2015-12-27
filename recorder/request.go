@@ -20,24 +20,6 @@ type RequestStop struct{}
 // The response will be of type MsgLevel.
 type RequestLevel struct{}
 
-// NewRequestStart returns a new start request
-// and initializes the response channel.
-func NewRequestStart() Request {
-	return Request{
-		Value:        RequestStart{},
-		ResponseChan: make(chan Response),
-	}
-}
-
-// NewRequestStop returns a new stop request
-// and initializes the response channel.
-func NewRequestStop() Request {
-	return Request{
-		Value:        RequestStop{},
-		ResponseChan: make(chan Response),
-	}
-}
-
 // NewRequest returns a new request with the given value
 // and initializes the response channel.
 func NewRequest(value interface{}) Request {

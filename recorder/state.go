@@ -1,10 +1,43 @@
 package recorder
 
-import "log"
+import (
+	"errors"
+	"log"
+)
 
 var queue = make(chan Request)
 
 type stateFn func(Recorder) stateFn
+
+// Start enqueues a start request and blocks until the recording starts
+// or the request failed.
+func Start() error {
+	return request(RequestStart{})
+}
+
+// Stop enqueues a stop request and blocks until the recording stops
+// or the request failed.
+func Stop() error {
+	return request(RequestStop{})
+}
+
+func request(v interface{}) error {
+	req := Request{
+		Value:        v,
+		ResponseChan: make(chan Response),
+	}
+	Enqueue(req)
+
+	res := <-req.ResponseChan
+	switch res.(type) {
+	case ResponseOK:
+		return nil
+	case ResponseError:
+		return res.(error)
+	}
+
+	return errors.New("unknown response")
+}
 
 // Enqueue enqueues the given request to the recorder state machine.
 func Enqueue(r Request) {
