@@ -89,7 +89,7 @@ func (r *recorder) Start(msgChan chan Msg) (err error) {
 		}
 
 		if state := pl.SetState(gst.STATE_PLAYING); state == gst.STATE_CHANGE_FAILURE {
-			err = errors.New("record start failed: state change failed")
+			err = errors.New("start failed: state change failed")
 			return
 		}
 
