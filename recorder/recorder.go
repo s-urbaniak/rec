@@ -43,9 +43,10 @@ func (r *recorder) Start(msgChan chan Msg) (err error) {
 	)
 
 	grun.Run(func() {
-		src := gst.ElementFactoryMake("audiotestsrc", "src")
+		src := gst.ElementFactoryMake("pulsesrc", "src")
+		//src := gst.ElementFactoryMake("audiotestsrc", "src")
 		//src.SetProperty("num-buffers", 100)
-		//src.SetProperty("device", "hw:0")
+		//src.SetProperty("device", "hw:2")
 
 		audioconvert := gst.ElementFactoryMake("audioconvert", "audioconvert")
 
@@ -122,19 +123,17 @@ func (r *recorder) Stop() error {
 	return nil
 }
 
-func (r *recorder) Reset() (err error) {
+func (r *recorder) Reset() error {
+	var err error
 	grun.Run(func() {
 		if state := r.pl.SetState(gst.STATE_NULL); state == gst.STATE_CHANGE_FAILURE {
 			err = errors.New("reset failed: state change failed")
 		}
+
 		r.bus.RemoveSignalWatch()
 	})
 
-	if err != nil {
-		return
-	}
-
 	r.pl = nil
 	r.bus = nil
-	return
+	return err
 }

@@ -13,20 +13,47 @@ import (
 func main() {
 	log.SetFlags(log.Ltime | log.Lshortfile)
 
-	go recorder.Run(recorder.NewRecorder())
 	go webapp.ListenAndServe()
 
 	go func() {
-		log.Printf("start err %v", recorder.Start())
+		rec := recorder.NewRecorder()
+		msgChan := make(chan recorder.Msg)
 
-		lr := recorder.NewRequest(recorder.RequestLevel{})
-		for i := 0; i < 50; i++ {
-			recorder.Enqueue(lr)
-			log.Printf("level response %+v\n", <-lr.ResponseChan)
-			time.Sleep(100 * time.Millisecond)
+		if err := rec.Start(msgChan); err != nil {
+			log.Fatal(err)
 		}
 
-		log.Printf("stop err %v", recorder.Stop())
+		timeout := time.After(5 * time.Second)
+
+	loop:
+		for {
+			select {
+			case msg := <-msgChan:
+				log.Printf("%T %+v", msg, msg)
+			case <-timeout:
+				log.Printf("### TIMEOUT")
+				break loop
+			}
+		}
+
+		if err := rec.Stop(); err != nil {
+			log.Fatal(err)
+		}
+
+	loop2:
+		for {
+			select {
+			case msg := <-msgChan:
+				if _, ok := msg.(recorder.MsgEOS); ok {
+					break loop2
+				}
+			}
+		}
+
+		if err := rec.Reset(); err != nil {
+			log.Fatal(err)
+		}
+		println("stopped")
 	}()
 
 	glib.NewMainLoop(nil).Run()
