@@ -3,7 +3,6 @@ package recorder
 import (
 	"errors"
 
-	"github.com/s-urbaniak/grun"
 	"github.com/s-urbaniak/gst"
 )
 
@@ -14,21 +13,19 @@ import (
 //
 // Stop stops the recorder.
 // Note that this method does not stop the recorder immediately
-// but a MsgEOS message will be sent via the Msg channel.
+// but a MsgEOS message will be sent eventually via the Msg channel.
 //
 // Reset resets the recorder.
 // After reset is invoked no messages via the Msg channel are about to happen.
 type Recorder interface {
-	Start(chan Msg) error
+	Start() error
 	Stop() error
-	Reset() error
 }
 
 var _ Recorder = (*recorder)(nil)
 
 type recorder struct {
-	pl  *gst.Pipeline
-	bus *gst.Bus
+	pl *gst.Pipeline
 }
 
 // NewRecorder returns a recorder which can be started.
@@ -36,104 +33,85 @@ func NewRecorder() Recorder {
 	return &recorder{}
 }
 
-func (r *recorder) Start(msgChan chan Msg) (err error) {
-	var (
-		pl  *gst.Pipeline
-		bus *gst.Bus
-	)
+func (r *recorder) Start() (err error) {
+	var pl *gst.Pipeline
 
-	grun.Run(func() {
-		src := gst.ElementFactoryMake("pulsesrc", "src")
-		//src := gst.ElementFactoryMake("audiotestsrc", "src")
-		//src.SetProperty("num-buffers", 100)
-		//src.SetProperty("device", "hw:2")
+	src := gst.ElementFactoryMake("pulsesrc", "src")
+	//src := gst.ElementFactoryMake("audiotestsrc", "src")
+	//src.SetProperty("num-buffers", 100)
+	//src.SetProperty("device", "hw:2")
 
-		audioconvert := gst.ElementFactoryMake("audioconvert", "audioconvert")
+	audioconvert := gst.ElementFactoryMake("audioconvert", "audioconvert")
 
-		level := gst.ElementFactoryMake("level", "level")
-		level.SetProperty("post-messages", true)
-		level.SetProperty("interval", 100000000)
+	level := gst.ElementFactoryMake("level", "level")
+	level.SetProperty("post-messages", true)
+	level.SetProperty("interval", 100000000)
 
-		audioresample := gst.ElementFactoryMake("audioresample", "audioresample")
-		vorbisenc := gst.ElementFactoryMake("vorbisenc", "vorbisenc")
-		vorbisenc.SetProperty("quality", 0.7)
-		oggmux := gst.ElementFactoryMake("oggmux", "oggmux")
+	audioresample := gst.ElementFactoryMake("audioresample", "audioresample")
+	vorbisenc := gst.ElementFactoryMake("vorbisenc", "vorbisenc")
+	vorbisenc.SetProperty("quality", 0.7)
+	oggmux := gst.ElementFactoryMake("oggmux", "oggmux")
 
-		filesink := gst.ElementFactoryMake("filesink", "filesink")
-		filesink.SetProperty("sync", true)
-		filesink.SetProperty("location", "test.ogg")
+	filesink := gst.ElementFactoryMake("filesink", "filesink")
+	filesink.SetProperty("sync", true)
+	filesink.SetProperty("location", "test.ogg")
 
-		pl = gst.NewPipeline("pl")
-		if ok := pl.Add(
-			src,
-			audioconvert,
-			level,
-			audioresample,
-			vorbisenc,
-			oggmux,
-			filesink,
-		); !ok {
-			err = errors.New("adding elements to pipeline failed")
-			return
-		}
-
-		if ok := src.Link(
-			audioconvert,
-			level,
-			audioresample,
-			vorbisenc,
-			oggmux,
-			filesink,
-		); !ok {
-			err = errors.New("linking elements failed")
-			return
-		}
-
-		if state := pl.SetState(gst.STATE_PLAYING); state == gst.STATE_CHANGE_FAILURE {
-			err = errors.New("start failed: state change failed")
-			return
-		}
-
-		bus = pl.GetBus()
-		bus.AddSignalWatch()
-		bus.Connect("message", NewOnMessageFunc(msgChan), nil)
-	})
-
-	if err != nil {
-		return
+	pl = gst.NewPipeline("pl")
+	if ok := pl.Add(
+		src,
+		audioconvert,
+		level,
+		audioresample,
+		vorbisenc,
+		oggmux,
+		filesink,
+	); !ok {
+		return errors.New("adding elements to pipeline failed")
 	}
 
-	r.pl = pl
-	r.bus = bus
+	if ok := src.Link(
+		audioconvert,
+		level,
+		audioresample,
+		vorbisenc,
+		oggmux,
+		filesink,
+	); !ok {
+		return errors.New("linking elements failed")
+	}
 
+	if state := pl.SetState(gst.STATE_PLAYING); state == gst.STATE_CHANGE_FAILURE {
+		return errors.New("start failed: state change failed")
+	}
+
+	pl.GetBus().AddSignalWatch()
+
+	r.pl = pl
 	return
 }
 
+func (r *recorder) MsgChan(msgChan chan Msg) {
+	r.pl.GetBus().Connect("message", NewOnMessageFunc(msgChan), nil)
+}
+
 func (r *recorder) Stop() error {
-	var result bool
-
-	grun.Run(func() {
-		result = r.pl.SendEvent(gst.NewEventEOS())
-	})
-
-	if !result {
+	if ok := r.pl.SendEvent(gst.NewEventEOS()); !ok {
 		return errors.New("stop failed (EOS event was not handled)")
 	}
 
-	return nil
-}
+	// wait for EOS
+	eosChan := make(chan Msg)
+	r.MsgChan(eosChan)
+	for ok := false; !ok; _, ok = (<-eosChan).(MsgEOS) {
+	}
 
-func (r *recorder) Reset() error {
 	var err error
-	grun.Run(func() {
-		if state := r.pl.SetState(gst.STATE_NULL); state == gst.STATE_CHANGE_FAILURE {
-			err = errors.New("reset failed: state change failed")
-		}
+	if state := r.pl.SetState(gst.STATE_NULL); state == gst.STATE_CHANGE_FAILURE {
+		err = errors.New("reset failed: state change failed")
+	}
 
-		r.bus.RemoveSignalWatch()
-	})
-
+	r.pl.GetBus().RemoveSignalWatch()
 	r.pl = nil
-	r.bus = nil
+
 	return err
 }
