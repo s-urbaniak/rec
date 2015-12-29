@@ -8,15 +8,32 @@
 </head>
 
 <body>
-  <div class="container">
-    <h1>00:00:00</h1>
-    <div class="btn-group">
-      <button type="button" class="btn btn-success btn-lg">1</button>
-      <button type="button" class="btn btn-warning btn-lg">2</button>
-      <button type="button" class="btn btn-danger btn-lg">3</button>
-      <button type="button" class="btn btn-primary btn-lg">4</button>
-      <button type="button" class="btn btn-lg">5</button>
+  <div class="container" id="container">
+    <div class="row">
+      <div class="col-xs-12">
+        <h1>00:00:00</h1>
+      </div>
     </div>
+
+    <div class="row">
+      <div class="col-xs-12">
+        <div class="btn-group">
+          <button id="button1" type="button" class="btn btn-success btn-lg">1</button>
+          <button id="button2" type="button" class="btn btn-warning btn-lg">2</button>
+          <button id="button3" type="button" class="btn btn-danger btn-lg">3</button>
+          <button id="button4" type="button" class="btn btn-primary btn-lg">4</button>
+          <button id="button5" type="button" class="btn btn-lg">5</button>
+        </div>
+      </div>
+    </div>
+
+    <template id="alertTemplate">
+      <div class="row">
+        <div class="col-xs-12">
+          <div class="alert"></div>
+        </div>
+      </div>
+    </template>
   </div>
 
   <script src="jquery/jquery.js"></script>

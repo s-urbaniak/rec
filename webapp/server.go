@@ -23,7 +23,7 @@ func wsHandler(res http.ResponseWriter, req *http.Request) error {
 			return fmt.Errorf("error reading message, error %v", err)
 		}
 
-		log.Printf("msg type %d msg %q", msgType, msg)
+		log.Printf("msgType %d msg %q", msgType, msg)
 
 		if err := c.WriteMessage(msgType, []byte("ok")); err != nil {
 			return fmt.Errorf("error writing message, error %v", err)
