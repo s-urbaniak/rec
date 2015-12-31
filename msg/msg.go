@@ -1,4 +1,4 @@
-package recorder
+package msg
 
 import (
 	"github.com/s-urbaniak/glib"
@@ -10,6 +10,10 @@ type Msg interface{}
 type MsgLevel struct {
 	Peak, Rms                        float64
 	Timestamp, Duration, RunningTime uint64
+}
+
+type MsgDeviceAdded struct {
+	DisplayName string
 }
 
 type MsgUnknown string
@@ -34,6 +38,18 @@ func NewMsgLevel(params glib.Params) MsgLevel {
 	}
 }
 
+func NewMsgDeviceAdded(msg *gst.Message) MsgDeviceAdded {
+	dev := msg.ParseDeviceAdded()
+	defer dev.Unref()
+
+	caps := dev.GetCaps()
+	defer caps.Unref()
+
+	return MsgDeviceAdded{
+		DisplayName: dev.GetDisplayName(),
+	}
+}
+
 func NewOnMessageFunc(msgChan chan Msg) onMessageFunc {
 	return func(bus *gst.Bus, msg *gst.Message) {
 		typ := msg.GetType()
@@ -42,6 +58,8 @@ func NewOnMessageFunc(msgChan chan Msg) onMessageFunc {
 		switch {
 		case typ == gst.MESSAGE_ELEMENT && name == "level":
 			msgChan <- NewMsgLevel(params)
+		case typ == gst.MESSAGE_DEVICE_ADDED:
+			msgChan <- NewMsgDeviceAdded(msg)
 		case typ == gst.MESSAGE_EOS:
 			msgChan <- MsgEOS{}
 		default:

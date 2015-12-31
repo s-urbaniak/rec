@@ -4,6 +4,7 @@ import (
 	"errors"
 
 	"github.com/s-urbaniak/gst"
+	"github.com/s-urbaniak/rec/msg"
 )
 
 // Recorder is the interface that defines the behavior of a recorder.
@@ -19,6 +20,7 @@ import (
 // After reset is invoked no messages via the Msg channel are about to happen.
 type Recorder interface {
 	Start() error
+	MsgChan(chan msg.Msg)
 	Stop() error
 }
 
@@ -90,8 +92,8 @@ func (r *recorder) Start() (err error) {
 	return
 }
 
-func (r *recorder) MsgChan(msgChan chan Msg) {
-	r.pl.GetBus().Connect("message", NewOnMessageFunc(msgChan), nil)
+func (r *recorder) MsgChan(msgChan chan msg.Msg) {
+	r.pl.GetBus().Connect("message", msg.NewOnMessageFunc(msgChan), nil)
 }
 
 func (r *recorder) Stop() error {
@@ -100,9 +102,9 @@ func (r *recorder) Stop() error {
 	}
 
 	// wait for EOS
-	eosChan := make(chan Msg)
+	eosChan := make(chan msg.Msg)
 	r.MsgChan(eosChan)
-	for ok := false; !ok; _, ok = (<-eosChan).(MsgEOS) {
+	for ok := false; !ok; _, ok = (<-eosChan).(msg.MsgEOS) {
 	}
 
 	var err error
