@@ -19,7 +19,9 @@ Bacon
 
 Bacon
     .fromEvent(ws, "message")
-    .onValue(v => alert("WebSocket response: " + v.data, "alert-success", 500))
+    .onValue(v => {
+        $("#time").html('<h1>'+v.data+'</h1>')
+    })
 
 Bacon
     .fromEvent(ws, "error")

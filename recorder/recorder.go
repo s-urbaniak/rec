@@ -2,6 +2,7 @@ package recorder
 
 import (
 	"errors"
+	"fmt"
 
 	"github.com/s-urbaniak/gst"
 	"github.com/s-urbaniak/rec/msg"
@@ -86,14 +87,18 @@ func (r *recorder) Start() (err error) {
 		return errors.New("start failed: state change failed")
 	}
 
-	pl.GetBus().AddSignalWatch()
-
+	bus := pl.GetBus()
+	defer bus.Unref()
+	bus.AddSignalWatch()
 	r.pl = pl
+
 	return
 }
 
 func (r *recorder) MsgChan(msgChan chan msg.Msg) {
-	r.pl.GetBus().Connect("message", msg.NewOnMessageFunc(msgChan), nil)
+	bus := r.pl.GetBus()
+	defer bus.Unref()
+	bus.Connect("message", msg.NewOnMessageFunc(msgChan), nil)
 }
 
 func (r *recorder) Stop() error {
@@ -104,7 +109,9 @@ func (r *recorder) Stop() error {
 	// wait for EOS
 	eosChan := make(chan msg.Msg)
 	r.MsgChan(eosChan)
-	for ok := false; !ok; _, ok = (<-eosChan).(msg.MsgEOS) {
+	var v interface{}
+	for ok := false; !ok; v, ok = (<-eosChan).(msg.MsgEOS) {
+		println(fmt.Sprintf("%T", v))
 	}
 
 	var err error
@@ -112,7 +119,9 @@ func (r *recorder) Stop() error {
 		err = errors.New("reset failed: state change failed")
 	}
 
-	r.pl.GetBus().RemoveSignalWatch()
+	bus := r.pl.GetBus()
+	defer bus.Unref()
+	bus.RemoveSignalWatch()
 	r.pl = nil
 
 	return err

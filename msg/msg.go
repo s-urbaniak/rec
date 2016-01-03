@@ -13,7 +13,19 @@ type MsgLevel struct {
 }
 
 type MsgDeviceAdded struct {
+	Class       string
 	DisplayName string
+	Properties  map[string]interface{}
+}
+
+func NewMsgDeviceAdded(dev *gst.Device) MsgDeviceAdded {
+	_, props := dev.GetProperties()
+
+	return MsgDeviceAdded{
+		Class:       dev.GetDeviceClass(),
+		DisplayName: dev.GetDisplayName(),
+		Properties:  props,
+	}
 }
 
 type MsgUnknown string
@@ -38,18 +50,6 @@ func NewMsgLevel(params glib.Params) MsgLevel {
 	}
 }
 
-func NewMsgDeviceAdded(msg *gst.Message) MsgDeviceAdded {
-	dev := msg.ParseDeviceAdded()
-	defer dev.Unref()
-
-	caps := dev.GetCaps()
-	defer caps.Unref()
-
-	return MsgDeviceAdded{
-		DisplayName: dev.GetDisplayName(),
-	}
-}
-
 func NewOnMessageFunc(msgChan chan Msg) onMessageFunc {
 	return func(bus *gst.Bus, msg *gst.Message) {
 		typ := msg.GetType()
@@ -59,7 +59,9 @@ func NewOnMessageFunc(msgChan chan Msg) onMessageFunc {
 		case typ == gst.MESSAGE_ELEMENT && name == "level":
 			msgChan <- NewMsgLevel(params)
 		case typ == gst.MESSAGE_DEVICE_ADDED:
-			msgChan <- NewMsgDeviceAdded(msg)
+			dev := msg.ParseDeviceAdded()
+			defer dev.Unref()
+			msgChan <- NewMsgDeviceAdded(dev)
 		case typ == gst.MESSAGE_EOS:
 			msgChan <- MsgEOS{}
 		default:
