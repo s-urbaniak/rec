@@ -2,48 +2,29 @@ package recorder
 
 import (
 	"errors"
-	"fmt"
 
+	"github.com/s-urbaniak/grun"
 	"github.com/s-urbaniak/gst"
 	"github.com/s-urbaniak/rec/msg"
 )
 
-// Recorder is the interface that defines the behavior of a recorder.
-//
-// Start starts the recorder. Pipeline messages occuring during recording
+type Recorder struct {
+	pl       *gst.Pipeline
+	bus      *gst.Bus
+	location string
+}
+
+// NewRecorder returns a Recorder which can be started.
+func NewRecorder(location string) *Recorder {
+	return &Recorder{location: location}
+}
+
+// Start starts the Recorder. Pipeline messages occuring during recording
 // will be transmitted over the given Msg channel.
-//
-// Stop stops the recorder.
-// Note that this method does not stop the recorder immediately
-// but a MsgEOS message will be sent eventually via the Msg channel.
-//
-// Reset resets the recorder.
-// After reset is invoked no messages via the Msg channel are about to happen.
-type Recorder interface {
-	Start() error
-	MsgChan(chan msg.Msg)
-	Stop() error
-}
-
-var _ Recorder = (*recorder)(nil)
-
-type recorder struct {
-	pl *gst.Pipeline
-}
-
-// NewRecorder returns a recorder which can be started.
-func NewRecorder() Recorder {
-	return &recorder{}
-}
-
-func (r *recorder) Start() (err error) {
+func (r *Recorder) Start() error {
 	var pl *gst.Pipeline
 
 	src := gst.ElementFactoryMake("pulsesrc", "src")
-	//src := gst.ElementFactoryMake("audiotestsrc", "src")
-	//src.SetProperty("num-buffers", 100)
-	//src.SetProperty("device", "hw:2")
-
 	audioconvert := gst.ElementFactoryMake("audioconvert", "audioconvert")
 
 	level := gst.ElementFactoryMake("level", "level")
@@ -57,7 +38,7 @@ func (r *recorder) Start() (err error) {
 
 	filesink := gst.ElementFactoryMake("filesink", "filesink")
 	filesink.SetProperty("sync", true)
-	filesink.SetProperty("location", "test.ogg")
+	filesink.SetProperty("location", r.location)
 
 	pl = gst.NewPipeline("pl")
 	if ok := pl.Add(
@@ -83,46 +64,67 @@ func (r *recorder) Start() (err error) {
 		return errors.New("linking elements failed")
 	}
 
-	if state := pl.SetState(gst.STATE_PLAYING); state == gst.STATE_CHANGE_FAILURE {
-		return errors.New("start failed: state change failed")
-	}
-
-	bus := pl.GetBus()
-	defer bus.Unref()
-	bus.AddSignalWatch()
 	r.pl = pl
 
-	return
-}
-
-func (r *recorder) MsgChan(msgChan chan msg.Msg) {
-	bus := r.pl.GetBus()
-	defer bus.Unref()
-	bus.Connect("message", msg.NewOnMessageFunc(msgChan), nil)
-}
-
-func (r *recorder) Stop() error {
-	if ok := r.pl.SendEvent(gst.NewEventEOS()); !ok {
-		return errors.New("stop failed (EOS event was not handled)")
+	if err := r.setState(gst.STATE_PLAYING); err != nil {
+		return err
 	}
+
+	grun.Run(func() {
+		r.bus = pl.GetBus()
+		r.bus.AddSignalWatch()
+	})
+
+	return nil
+}
+
+func (r *Recorder) MsgChan(msgChan chan msg.Msg) {
+	grun.Run(func() {
+		r.bus.Connect("message", msg.NewOnMessageFunc(msgChan), nil)
+	})
+}
+
+func (r *Recorder) setState(state gst.State) error {
+	var err error
+	grun.Run(func() {
+		if state := r.pl.SetState(state); state == gst.STATE_CHANGE_FAILURE {
+			err = errors.New("state change failed")
+		}
+	})
+	return err
+}
+
+func (r *Recorder) sendEvent(evt *gst.Event) error {
+	var err error
+	grun.Run(func() {
+		if ok := r.pl.SendEvent(evt); !ok {
+			err = errors.New("stop failed (EOS event was not handled)")
+		}
+	})
+	return err
+}
+
+// Stop stops the Recorder.
+func (r *Recorder) Stop() error {
+	r.sendEvent(gst.NewEventEOS())
 
 	// wait for EOS
 	eosChan := make(chan msg.Msg)
 	r.MsgChan(eosChan)
-	var v interface{}
-	for ok := false; !ok; v, ok = (<-eosChan).(msg.MsgEOS) {
-		println(fmt.Sprintf("%T", v))
+	for ok := false; !ok; _, ok = (<-eosChan).(msg.MsgEOS) {
 	}
 
-	var err error
-	if state := r.pl.SetState(gst.STATE_NULL); state == gst.STATE_CHANGE_FAILURE {
-		err = errors.New("reset failed: state change failed")
+	if err := r.setState(gst.STATE_NULL); err != nil {
+		return err
 	}
 
-	bus := r.pl.GetBus()
-	defer bus.Unref()
-	bus.RemoveSignalWatch()
-	r.pl = nil
+	grun.Run(func() {
+		r.bus.RemoveSignalWatch()
+		r.bus.Unref()
+		r.pl.Unref()
+		r.bus = nil
+		r.pl = nil
+	})
 
-	return err
+	return nil
 }
