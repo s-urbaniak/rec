@@ -22,6 +22,10 @@ func NewRecorder(location string) *Recorder {
 // Start starts the Recorder. Pipeline messages occuring during recording
 // will be transmitted over the given Msg channel.
 func (r *Recorder) Start() error {
+	if r.pl != nil {
+		return errors.New("pipeline already configured")
+	}
+
 	var pl *gst.Pipeline
 
 	src := gst.ElementFactoryMake("pulsesrc", "src")
@@ -66,47 +70,35 @@ func (r *Recorder) Start() error {
 
 	r.pl = pl
 
-	if err := r.setState(gst.STATE_PLAYING); err != nil {
-		return err
+	if state := r.pl.SetState(gst.STATE_PLAYING); state == gst.STATE_CHANGE_FAILURE {
+		return errors.New("state change failed")
 	}
 
-	grun.Run(func() {
-		r.bus = pl.GetBus()
-		r.bus.AddSignalWatch()
-	})
+	r.bus = pl.GetBus()
+	r.bus.AddSignalWatch()
 
 	return nil
 }
 
+// MsgChan will advertise recorder events to the given channel.
+// This method must be called after Start otherwise it will block forever.
 func (r *Recorder) MsgChan(msgChan chan msg.Msg) {
-	grun.Run(func() {
-		r.bus.Connect("message", msg.NewOnMessageFunc(msgChan), nil)
-	})
-}
+	if r.bus == nil {
+		return
+	}
 
-func (r *Recorder) setState(state gst.State) error {
-	var err error
-	grun.Run(func() {
-		if state := r.pl.SetState(state); state == gst.STATE_CHANGE_FAILURE {
-			err = errors.New("state change failed")
-		}
-	})
-	return err
-}
-
-func (r *Recorder) sendEvent(evt *gst.Event) error {
-	var err error
-	grun.Run(func() {
-		if ok := r.pl.SendEvent(evt); !ok {
-			err = errors.New("stop failed (EOS event was not handled)")
-		}
-	})
-	return err
+	r.bus.Connect("message", msg.NewOnMessageFunc(msgChan), nil)
 }
 
 // Stop stops the Recorder.
 func (r *Recorder) Stop() error {
-	r.sendEvent(gst.NewEventEOS())
+	if r.pl == nil {
+		return nil
+	}
+
+	if ok := r.pl.SendEvent(gst.NewEventEOS()); !ok {
+		return errors.New("stop failed (EOS event was not handled)")
+	}
 
 	// wait for EOS
 	eosChan := make(chan msg.Msg)
@@ -114,17 +106,28 @@ func (r *Recorder) Stop() error {
 	for ok := false; !ok; _, ok = (<-eosChan).(msg.MsgEOS) {
 	}
 
-	if err := r.setState(gst.STATE_NULL); err != nil {
-		return err
-	}
-
-	grun.Run(func() {
-		r.bus.RemoveSignalWatch()
-		r.bus.Unref()
-		r.pl.Unref()
-		r.bus = nil
-		r.pl = nil
+	// TODO(sur): not sure why this has to run in the main loop thread,
+	// needs further investigation.
+	// When not run in the main loop thread, the app seems to deadlock.
+	return grunErr(func() error {
+		if state := r.pl.SetState(gst.STATE_NULL); state == gst.STATE_CHANGE_FAILURE {
+			return errors.New("state change failed")
+		}
+		return nil
 	})
 
+	r.bus.RemoveSignalWatch()
+	r.bus.Unref()
+	r.pl.Unref()
+	r.bus = nil
+	r.pl = nil
 	return nil
+}
+
+func grunErr(f func() error) error {
+	var err error
+	grun.Run(func() {
+		err = f()
+	})
+	return err
 }
