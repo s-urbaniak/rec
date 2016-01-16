@@ -14,6 +14,7 @@ type MsgLevel struct {
 
 type MsgDeviceAdded struct {
 	Class       string
+	Name        string
 	DisplayName string
 	Properties  map[string]interface{}
 }
@@ -23,6 +24,7 @@ func NewMsgDeviceAdded(dev *gst.Device) MsgDeviceAdded {
 
 	return MsgDeviceAdded{
 		Class:       dev.GetDeviceClass(),
+		Name:        dev.GetName(),
 		DisplayName: dev.GetDisplayName(),
 		Properties:  props,
 	}

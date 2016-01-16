@@ -13,7 +13,7 @@ import (
 	"github.com/s-urbaniak/rec/recorder"
 )
 
-var letterRunes = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
+var letterRunes = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789")
 
 func RandString(n int) string {
 	b := make([]rune, n)
@@ -45,7 +45,7 @@ func main() {
 				panic(err)
 			}
 			r.MsgChan(msgChan)
-			time.Sleep(2 * time.Second)
+			time.Sleep(time.Second)
 			println("### done, stopping")
 			if err := r.Stop(); err != nil {
 				panic(err)
